@@ -42,6 +42,10 @@
   .hint { font-size: 13px; color: var(--muted); line-height: 1.5; }
   .req { color: var(--error); }
   .error { font-size: 14px; color: var(--error); line-height: 1.45; background: #FCEDEC; border-radius: 12px; padding: 10px 14px; }
+  .notice { font-size: 14px; line-height: 1.45; border-radius: 12px; padding: 10px 14px; background: var(--accent-soft); color: #0A4F40; }
+  .notice.warn { background: #FFF4E5; color: #7A4100; }
+  .filled { background: #F3FAF7 !important; }
+  .row3 { display: grid; grid-template-columns: 0.8fr 1fr 1fr; gap: 10px; align-items: end; }
   [hidden] { display: none !important; }
 
   footer { position: sticky; bottom: 0; padding: 14px 20px; padding-bottom: max(18px, env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); }
@@ -167,8 +171,11 @@
         <h1>Receiving details</h1>
         <div class="sub">收货资料 · <span class="req">*</span> required 必填</div>
       </div>
+      <div class="notice" id="aiNotice" role="status" hidden></div>
       <label class="field"><span class="lbl">Date received · 收货日期</span>
         <input class="txt" id="f_date" type="date"></label>
+      <label class="field"><span class="lbl">Invoice date · 单据日期</span>
+        <input class="txt" id="f_docDate" type="date"></label>
       <label class="field"><span class="lbl">Supplier · 供应商 <span class="req">*</span></span>
         <input class="txt" id="f_supplier" type="text" maxlength="200" placeholder="e.g. ABC Trading 例：ABC贸易"></label>
       <div class="row2">
@@ -178,7 +185,20 @@
           <input class="txt" id="f_poNo" type="text" maxlength="100"></label>
       </div>
       <label class="field"><span class="lbl">Items &amp; quantity · 货品及数量</span>
-        <textarea id="f_items" rows="3" maxlength="2000" placeholder="e.g. Rice 10 bags 例：大米 10包"></textarea></label>
+        <textarea id="f_items" rows="3" maxlength="4000" placeholder="e.g. Rice 10 bags 例：大米 10包"></textarea></label>
+      <div class="field" style="display:flex;flex-direction:column;gap:8px">
+        <span class="lbl">Amounts · 金额</span>
+        <div class="row3">
+          <label class="field"><span class="lbl"><small>Currency 币种</small></span>
+            <input class="txt" id="f_currency" type="text" maxlength="10" placeholder="SGD" autocapitalize="characters"></label>
+          <label class="field"><span class="lbl"><small>Subtotal 小计</small></span>
+            <input class="txt" id="f_subtotal" type="text" inputmode="decimal" maxlength="20"></label>
+          <label class="field"><span class="lbl"><small>Tax/GST 税额</small></span>
+            <input class="txt" id="f_tax" type="text" inputmode="decimal" maxlength="20"></label>
+        </div>
+        <label class="field"><span class="lbl"><small>Total 总额</small></span>
+          <input class="txt" id="f_total" type="text" inputmode="decimal" maxlength="20"></label>
+      </div>
       <div class="field" style="display:flex;flex-direction:column;gap:8px">
         <span class="lbl" id="condLbl">Condition · 货物状况</span>
         <div class="seg" role="group" aria-labelledby="condLbl">
@@ -277,19 +297,29 @@ const CONFIG = {
     window.scrollTo(0, 0);
   }
 
-  async function api(payload) {
+  async function api(payload, timeoutMs) {
     if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_') === 0) {
       throw new Error('Setup not finished: SCRIPT_URL is missing in index.html. 尚未设置上传网址。');
     }
-    // text/plain avoids a CORS pre-flight, which Apps Script cannot answer.
-    const res = await fetch(CONFIG.SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
-      redirect: 'follow'
-    });
-    if (!res.ok) throw new Error('Server error ' + res.status);
-    return res.json();
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs || 90000) : null;
+    try {
+      // text/plain avoids a CORS pre-flight, which Apps Script cannot answer.
+      const res = await fetch(CONFIG.SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        redirect: 'follow',
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      if (!res.ok) throw new Error('Server error ' + res.status);
+      return await res.json();
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw new Error('Timed out. 超时。');
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   function errText(code) {
@@ -387,10 +417,67 @@ const CONFIG = {
     $(id).addEventListener('change', async (e) => { await addFiles(e.target.files); e.target.value = ''; });
   });
 
-  $('toDetails').onclick = () => {
+  function photoKey() { return state.photos.map((p) => p.length + ':' + p.slice(-24)).join('|'); }
+
+  function fillEmpty(id, value) {
+    const el = $(id);
+    if (value === null || value === undefined || value === '') return false;
+    if (el.value.trim()) return false;
+    el.value = String(value);
+    el.classList.add('filled');
+    return true;
+  }
+
+  function setNotice(msg, warn) {
+    const n = $('aiNotice');
+    n.textContent = msg || '';
+    n.hidden = !msg;
+    n.classList.toggle('warn', !!warn);
+  }
+
+  async function autoRead() {
+    const key = photoKey();
+    if (state.readKey === key) return;          // already read these photos
+    state.readKey = key;
+    const btn = $('toDetails');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Reading invoice… 正在识别…';
+    try {
+      const r = await api({ action: 'extract', passcode: state.passcode, photos: state.photos.map((d) => d.split(',')[1]) }, 60000);
+      if (!r.ok) {
+        if (r.error === 'passcode') { store.del('rcv_pass'); state.passcode = ''; }
+        throw new Error(r.error);
+      }
+      const d = r.data || {};
+      const map = [['f_supplier', d.supplier], ['f_doNo', d.doNo], ['f_poNo', d.poNo], ['f_docDate', d.date],
+        ['f_items', d.items], ['f_currency', d.currency], ['f_subtotal', d.subtotal], ['f_tax', d.tax], ['f_total', d.total]];
+      const n = map.filter(([id, v]) => fillEmpty(id, v)).length;
+      state.autoRead = n > 0;
+      setNotice(n > 0
+        ? 'Filled in from the photo (shaded fields). Please check every field before submitting.\n已根据照片自动填写（浅色栏位），提交前请逐项核对。'
+        : 'Nothing could be read from the photo. Please fill in by hand. 未能识别内容，请手动填写。', n === 0);
+    } catch (err) {
+      const m = String(err && err.message || err);
+      setNotice((m === 'no-ai-key'
+        ? 'Auto-read is not set up yet. Please fill in by hand. 自动识别尚未开启，请手动填写。'
+        : 'Could not read the photo automatically (' + m + '). Please fill in by hand. 无法自动识别，请手动填写。'), true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Next · 下一步';
+    }
+  }
+
+  $('toDetails').onclick = async () => {
     if (!state.photos.length) { showErr($('capErr'), 'Please take at least one photo. 请至少拍一张照片。'); return; }
+    if (state.busy) return;
+    state.busy = true;
+    try { await autoRead(); } finally { state.busy = false; }
     go('details');
   };
+
+  ['f_supplier', 'f_doNo', 'f_poNo', 'f_docDate', 'f_items', 'f_currency', 'f_subtotal', 'f_tax', 'f_total'].forEach((id) => {
+    $(id).addEventListener('input', () => $(id).classList.remove('filled'));
+  });
 
   /* ---------- 3. details ---------- */
   document.querySelectorAll('[data-cond]').forEach((b) => {
@@ -404,7 +491,9 @@ const CONFIG = {
     const v = (id) => $(id).value.trim();
     return {
       date: v('f_date'), supplier: v('f_supplier'), doNo: v('f_doNo'), poNo: v('f_poNo'),
-      items: v('f_items'), condition: state.condition, receivedBy: v('f_receivedBy'), remarks: v('f_remarks')
+      items: v('f_items'), condition: state.condition, receivedBy: v('f_receivedBy'), remarks: v('f_remarks'),
+      currency: v('f_currency').toUpperCase(), subtotal: v('f_subtotal'), tax: v('f_tax'), total: v('f_total'),
+      docDate: v('f_docDate'), autoRead: !!state.autoRead
     };
   }
 
@@ -433,10 +522,14 @@ const CONFIG = {
     });
     const rows = [
       ['Date received', '收货日期', f.date],
+      ['Invoice date', '单据日期', f.docDate],
       ['Supplier', '供应商', f.supplier],
       ['DO / Invoice no.', '送货单/发票号', f.doNo],
       ['PO no.', '采购单号', f.poNo],
       ['Items & qty', '货品及数量', f.items],
+      ['Subtotal', '小计', f.subtotal ? (f.currency + ' ' + f.subtotal).trim() : ''],
+      ['Tax / GST', '税额', f.tax ? (f.currency + ' ' + f.tax).trim() : ''],
+      ['Total', '总额', f.total ? (f.currency + ' ' + f.total).trim() : ''],
       ['Condition', '货物状况', COND[f.condition].join(' ')],
       ['Received by', '收货人', f.receivedBy],
       ['Remarks', '备注', f.remarks],
@@ -491,7 +584,12 @@ const CONFIG = {
     state.photos = [];
     state.condition = 'good';
     renderThumbs();
-    ['f_supplier', 'f_doNo', 'f_poNo', 'f_items', 'f_remarks'].forEach((id) => { $(id).value = ''; $(id).classList.remove('invalid'); });
+    state.autoRead = false;
+    state.readKey = '';
+    setNotice('');
+    ['f_supplier', 'f_doNo', 'f_poNo', 'f_docDate', 'f_items', 'f_remarks', 'f_currency', 'f_subtotal', 'f_tax', 'f_total'].forEach((id) => {
+      $(id).value = ''; $(id).classList.remove('invalid', 'filled');
+    });
     $('f_date').value = today();
     $('f_receivedBy').value = store.getL('rcv_name');
     document.querySelectorAll('[data-cond]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.cond === 'good')));
