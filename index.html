@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F6E5A">
+<meta name="robots" content="noindex, nofollow">
+<title>Goods Receiving 收货记录</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #0F6E5A;
+    --accent-soft: #E3EFEB;
+    --ink: #1C2321;
+    --muted: #5B6662;
+    --line: #E2E5E0;
+    --field: #C9CFC8;
+    --ground: #F4F5F2;
+    --error: #B3261E;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: Inter, "Noto Sans SC", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  .app { max-width: 520px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; background: var(--ground); }
+  header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 14px 20px 12px; padding-top: max(14px, env(safe-area-inset-top)); background: #fff; border-bottom: 1px solid var(--line); }
+  .title { flex: 1; min-width: 0; }
+  .title b { display: block; font-size: 17px; line-height: 1.2; }
+  .title span { font-size: 13px; color: var(--muted); }
+  .stepinfo { font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; line-height: 1.3; }
+  .iconbtn { width: 44px; height: 44px; border: 1px solid #D5DAD4; border-radius: 12px; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink); padding: 0; flex: none; }
+  .progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px 20px 0; }
+  .progress i { height: 4px; border-radius: 2px; background: #D5DAD4; }
+  .progress i.on { background: var(--accent); }
+  main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 20px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 700; line-height: 1.25; }
+  .sub { font-size: 15px; color: var(--muted); margin-top: 4px; }
+  .hint { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .req { color: var(--error); }
+  .error { font-size: 14px; color: var(--error); line-height: 1.45; background: #FCEDEC; border-radius: 12px; padding: 10px 14px; }
+  [hidden] { display: none !important; }
+
+  footer { position: sticky; bottom: 0; padding: 14px 20px; padding-bottom: max(18px, env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); }
+  .primary { width: 100%; min-height: 56px; border: none; border-radius: 14px; background: var(--accent); color: #fff; font-size: 17px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .primary:disabled { opacity: .5; cursor: not-allowed; }
+  .link { align-self: flex-start; min-height: 44px; padding: 0 4px; border: none; background: transparent; color: var(--accent); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  button:focus-visible, input:focus, textarea:focus, .capture:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* lock */
+  .lock { align-items: center; text-align: center; padding-top: 48px; gap: 22px; }
+  .badge { width: 64px; height: 64px; border-radius: 20px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+  .pin { width: 100%; max-width: 280px; min-height: 60px; text-align: center; font-size: 28px; letter-spacing: .4em; border: 1px solid var(--field); border-radius: 14px; background: #fff; color: var(--ink); font-family: inherit; }
+
+  /* capture */
+  .capture { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 200px; border: 2px dashed #9DB5AD; border-radius: 18px; background: #fff; cursor: pointer; text-align: center; padding: 20px; position: relative; }
+  .capture input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .capture .cam { width: 64px; height: 64px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; }
+  .capture b { font-size: 17px; }
+  .capture span { font-size: 14px; color: var(--muted); }
+  .alt { display: flex; justify-content: center; }
+  .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .thumb { position: relative; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; background: #DDE2DC; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .num { position: absolute; left: 6px; bottom: 6px; background: rgba(28,35,33,.8); color: #fff; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 8px; }
+  .thumb button { position: absolute; top: 4px; right: 4px; width: 36px; height: 36px; border: none; border-radius: 50%; background: rgba(28,35,33,.8); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+
+  /* form */
+  label.field { display: flex; flex-direction: column; gap: 6px; }
+  .lbl { font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .lbl small { font-weight: 400; color: var(--muted); font-size: 14px; }
+  input.txt, textarea { width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid var(--field); border-radius: 12px; font-size: 16px; background: #fff; color: var(--ink); font-family: inherit; }
+  textarea { resize: vertical; line-height: 1.4; }
+  input.invalid { border-color: var(--error); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .seg button { min-height: 56px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; line-height: 1.3; border: 1px solid var(--field); background: #fff; color: var(--ink); font-family: inherit; }
+  .seg button small { display: block; font-size: 13px; font-weight: 400; }
+  .seg button[aria-pressed="true"] { border: 2px solid var(--accent); background: var(--accent-soft); }
+
+  /* review */
+  .strip { display: flex; gap: 8px; overflow-x: auto; }
+  .strip img { width: 84px; height: 112px; object-fit: cover; border-radius: 10px; flex: none; background: #DDE2DC; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; }
+  .rv { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #EEF0EC; }
+  .rv:last-child { border-bottom: none; }
+  .rv dt { width: 120px; flex: none; font-size: 13px; color: var(--muted); line-height: 1.35; margin: 0; }
+  .rv dd { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 500; white-space: pre-line; overflow-wrap: anywhere; }
+
+  /* done */
+  .done { align-items: center; justify-content: center; text-align: center; gap: 16px; }
+  .tick { width: 84px; height: 84px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; }
+  .refbox { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 22px; }
+  .refbox div:first-child { font-size: 13px; color: var(--muted); }
+  .refbox div:last-child { font-size: 22px; font-weight: 700; letter-spacing: .02em; margin-top: 4px; }
+
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <button class="iconbtn" id="backBtn" type="button" aria-label="Back 返回" hidden>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="title"><b>Goods Receiving</b><span>收货记录</span></div>
+    <div class="stepinfo" id="stepInfo" hidden></div>
+  </header>
+  <div class="progress" id="progress" hidden><i></i><i></i><i></i></div>
+
+  <!-- 1. Passcode -->
+  <section data-screen="lock">
+    <main class="lock">
+      <div class="badge">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </div>
+      <div>
+        <h1>Enter passcode</h1>
+        <div class="sub">请输入密码</div>
+      </div>
+      <form id="lockForm" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:16px">
+        <label for="pin" style="position:absolute;left:-9999px">Passcode 密码</label>
+        <input id="pin" class="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" required>
+        <div class="error" id="lockErr" role="alert" hidden></div>
+        <button class="primary" id="lockBtn" type="submit" style="max-width:280px">Enter · 进入</button>
+      </form>
+    </main>
+  </section>
+
+  <!-- 2. Capture -->
+  <section data-screen="capture" hidden>
+    <main>
+      <div>
+        <h1>Photograph the delivery order</h1>
+        <div class="sub">拍摄送货单 / 收据</div>
+      </div>
+      <label class="capture">
+        <input id="camInput" type="file" accept="image/*" capture="environment">
+        <div class="cam">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <b id="capLabel">Tap to take photo</b>
+        <span id="capLabelZh">点击拍照</span>
+      </label>
+      <div class="alt">
+        <label class="link" style="display:flex;align-items:center;cursor:pointer">
+          <input id="galleryInput" type="file" accept="image/*" multiple style="position:absolute;width:1px;height:1px;opacity:0">
+          Choose from gallery · 从相册选择
+        </label>
+      </div>
+      <div class="hint">Lay the paper flat, fill the frame, avoid glare. Several pages? Add each one.<br>请将单据平放、拍满画面、避免反光。多页请逐页添加。</div>
+      <div class="thumbs" id="thumbs"></div>
+      <div class="error" id="capErr" role="alert" hidden></div>
+    </main>
+    <footer><button class="primary" id="toDetails" type="button">Next · 下一步</button></footer>
+  </section>
+
+  <!-- 3. Details -->
+  <section data-screen="details" hidden>
+    <main>
+      <div>
+        <h1>Receiving details</h1>
+        <div class="sub">收货资料 · <span class="req">*</span> required 必填</div>
+      </div>
+      <label class="field"><span class="lbl">Date received · 收货日期</span>
+        <input class="txt" id="f_date" type="date"></label>
+      <label class="field"><span class="lbl">Supplier · 供应商 <span class="req">*</span></span>
+        <input class="txt" id="f_supplier" type="text" maxlength="200" placeholder="e.g. ABC Trading 例：ABC贸易"></label>
+      <div class="row2">
+        <label class="field"><span class="lbl">DO / Invoice no. <span class="req">*</span><br><small>送货单/发票号</small></span>
+          <input class="txt" id="f_doNo" type="text" maxlength="100"></label>
+        <label class="field"><span class="lbl">PO no.<br><small>采购单号</small></span>
+          <input class="txt" id="f_poNo" type="text" maxlength="100"></label>
+      </div>
+      <label class="field"><span class="lbl">Items &amp; quantity · 货品及数量</span>
+        <textarea id="f_items" rows="3" maxlength="2000" placeholder="e.g. Rice 10 bags 例：大米 10包"></textarea></label>
+      <div class="field" style="display:flex;flex-direction:column;gap:8px">
+        <span class="lbl" id="condLbl">Condition · 货物状况</span>
+        <div class="seg" role="group" aria-labelledby="condLbl">
+          <button type="button" data-cond="good" aria-pressed="true">Good<small>完好</small></button>
+          <button type="button" data-cond="damaged" aria-pressed="false">Damaged<small>损坏</small></button>
+          <button type="button" data-cond="short" aria-pressed="false">Short<small>短缺</small></button>
+        </div>
+      </div>
+      <label class="field"><span class="lbl">Received by · 收货人 <span class="req">*</span></span>
+        <input class="txt" id="f_receivedBy" type="text" maxlength="100" autocomplete="name"></label>
+      <label class="field"><span class="lbl">Remarks · 备注</span>
+        <textarea id="f_remarks" rows="2" maxlength="2000"></textarea></label>
+      <div class="error" id="detErr" role="alert" hidden></div>
+    </main>
+    <footer><button class="primary" id="toReview" type="button">Review · 检查</button></footer>
+  </section>
+
+  <!-- 4. Review -->
+  <section data-screen="review" hidden>
+    <main>
+      <div>
+        <h1>Check and submit</h1>
+        <div class="sub">确认后提交</div>
+      </div>
+      <div class="strip" id="strip"></div>
+      <dl class="card" id="reviewList" style="margin:0"></dl>
+      <button class="link" id="editBtn" type="button">Edit details · 修改</button>
+      <div class="error" id="subErr" role="alert" hidden></div>
+    </main>
+    <footer><button class="primary" id="submitBtn" type="button">Submit · 提交</button></footer>
+  </section>
+
+  <!-- 5. Done -->
+  <section data-screen="done" hidden>
+    <main class="done">
+      <div class="tick">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+      </div>
+      <div>
+        <h1 style="font-size:26px">Record uploaded</h1>
+        <div class="sub" style="font-size:17px">已成功上传</div>
+      </div>
+      <div class="refbox"><div>Reference no. · 编号</div><div id="refNo"></div></div>
+      <div class="hint" id="doneSummary" style="font-size:14px"></div>
+    </main>
+    <footer><button class="primary" id="againBtn" type="button">Scan another · 继续扫描</button></footer>
+  </section>
+
+</div>
+
+<script>
+/* =========================================================
+   SETTINGS — paste your Apps Script web app URL below.
+   (See README.md, step 3.) Do NOT put the passcode here:
+   it is checked by the Apps Script, not by this page.
+   ========================================================= */
+const CONFIG = {
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwtQl7uqVqxvzi7NTC_9QfcaCce5LwTlSDwQA7Y9PyekKfuuH5B_b4kCGORFbJbiSmT/exec',
+  MAX_PHOTOS: 10,      // pages per record
+  MAX_SIDE: 1600,      // photos are shrunk to this many pixels on the long side
+  QUALITY: 0.8         // JPEG quality (0–1)
+};
+
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const ORDER = ['capture', 'details', 'review'];
+  const COND = { good: ['Good', '完好'], damaged: ['Damaged', '损坏'], short: ['Short', '短缺'] };
+  const state = { screen: 'lock', passcode: '', photos: [], condition: 'good', busy: false };
+
+  const store = {
+    get(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) { return ''; } },
+    set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} },
+    del(k) { try { sessionStorage.removeItem(k); } catch (e) {} },
+    getL(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+    setL(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  function today() {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  function showErr(el, msg) { el.textContent = msg || ''; el.hidden = !msg; }
+
+  function go(screen) {
+    state.screen = screen;
+    document.querySelectorAll('[data-screen]').forEach((s) => { s.hidden = s.dataset.screen !== screen; });
+    const idx = ORDER.indexOf(screen);
+    $('backBtn').hidden = idx < 0;
+    $('stepInfo').hidden = idx < 0;
+    $('progress').hidden = idx < 0;
+    if (idx >= 0) {
+      $('stepInfo').innerHTML = 'Step ' + (idx + 1) + ' of 3<br>第' + (idx + 1) + '步 / 共3步';
+      [...$('progress').children].forEach((b, i) => b.classList.toggle('on', i <= idx));
+    }
+    window.scrollTo(0, 0);
+  }
+
+  async function api(payload) {
+    if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_') === 0) {
+      throw new Error('Setup not finished: SCRIPT_URL is missing in index.html. 尚未设置上传网址。');
+    }
+    // text/plain avoids a CORS pre-flight, which Apps Script cannot answer.
+    const res = await fetch(CONFIG.SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    return res.json();
+  }
+
+  function errText(code) {
+    if (code === 'passcode') return 'Wrong passcode, try again. 密码错误，请重试。';
+    if (code === 'locked') return 'Too many wrong tries. Wait 10 minutes. 错误次数过多，请10分钟后再试。';
+    if (code === 'missing') return 'Some required details are missing. 缺少必填资料。';
+    return 'Could not upload: ' + code + ' 上传失败';
+  }
+
+  /* ---------- 1. passcode ---------- */
+  $('lockForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = $('pin').value.trim();
+    if (!code) return;
+    $('lockBtn').disabled = true;
+    showErr($('lockErr'), '');
+    try {
+      const r = await api({ action: 'check', passcode: code });
+      if (r.ok) {
+        state.passcode = code;
+        store.set('rcv_pass', code);
+        $('pin').value = '';
+        go('capture');
+      } else {
+        showErr($('lockErr'), errText(r.error));
+        $('pin').select();
+      }
+    } catch (err) {
+      showErr($('lockErr'), (err.message || err) + '\nCheck your internet connection. 请检查网络连接。');
+    } finally {
+      $('lockBtn').disabled = false;
+    }
+  });
+
+  /* ---------- 2. photos ---------- */
+  function shrink(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(1, CONFIG.MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * s);
+        c.height = Math.round(img.naturalHeight * s);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', CONFIG.QUALITY));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Cannot read this photo. 无法读取照片。')); };
+      img.src = url;
+    });
+  }
+
+  async function addFiles(fileList) {
+    const files = [...(fileList || [])];
+    showErr($('capErr'), '');
+    for (const f of files) {
+      if (state.photos.length >= CONFIG.MAX_PHOTOS) {
+        showErr($('capErr'), 'Maximum ' + CONFIG.MAX_PHOTOS + ' pages per record. 每笔最多' + CONFIG.MAX_PHOTOS + '页。');
+        break;
+      }
+      try { state.photos.push(await shrink(f)); }
+      catch (err) { showErr($('capErr'), err.message); }
+    }
+    renderThumbs();
+  }
+
+  function renderThumbs() {
+    const box = $('thumbs');
+    box.innerHTML = '';
+    state.photos.forEach((src, i) => {
+      const d = document.createElement('div');
+      d.className = 'thumb';
+      const img = document.createElement('img');
+      img.src = src; img.alt = 'Receipt page ' + (i + 1);
+      const n = document.createElement('div');
+      n.className = 'num'; n.textContent = i + 1;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Remove page ' + (i + 1) + ' 删除第' + (i + 1) + '页');
+      b.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      b.onclick = () => { state.photos.splice(i, 1); renderThumbs(); };
+      d.append(img, n, b);
+      box.append(d);
+    });
+    const has = state.photos.length > 0;
+    $('capLabel').textContent = has ? 'Add another page' : 'Tap to take photo';
+    $('capLabelZh').textContent = has ? '添加下一页' : '点击拍照';
+  }
+
+  ['camInput', 'galleryInput'].forEach((id) => {
+    $(id).addEventListener('change', async (e) => { await addFiles(e.target.files); e.target.value = ''; });
+  });
+
+  $('toDetails').onclick = () => {
+    if (!state.photos.length) { showErr($('capErr'), 'Please take at least one photo. 请至少拍一张照片。'); return; }
+    go('details');
+  };
+
+  /* ---------- 3. details ---------- */
+  document.querySelectorAll('[data-cond]').forEach((b) => {
+    b.onclick = () => {
+      state.condition = b.dataset.cond;
+      document.querySelectorAll('[data-cond]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    };
+  });
+
+  function readForm() {
+    const v = (id) => $(id).value.trim();
+    return {
+      date: v('f_date'), supplier: v('f_supplier'), doNo: v('f_doNo'), poNo: v('f_poNo'),
+      items: v('f_items'), condition: state.condition, receivedBy: v('f_receivedBy'), remarks: v('f_remarks')
+    };
+  }
+
+  $('toReview').onclick = () => {
+    const f = readForm();
+    const need = [['f_supplier', f.supplier], ['f_doNo', f.doNo], ['f_receivedBy', f.receivedBy]];
+    need.forEach(([id, val]) => $(id).classList.toggle('invalid', !val));
+    if (need.some(([, val]) => !val)) {
+      showErr($('detErr'), 'Please fill in Supplier, DO / Invoice no. and Received by. 请填写供应商、送货单号及收货人。');
+      return;
+    }
+    showErr($('detErr'), '');
+    store.setL('rcv_name', f.receivedBy);
+    renderReview(f);
+    go('review');
+  };
+
+  /* ---------- 4. review ---------- */
+  function renderReview(f) {
+    const strip = $('strip');
+    strip.innerHTML = '';
+    state.photos.forEach((src, i) => {
+      const img = document.createElement('img');
+      img.src = src; img.alt = 'Receipt page ' + (i + 1);
+      strip.append(img);
+    });
+    const rows = [
+      ['Date received', '收货日期', f.date],
+      ['Supplier', '供应商', f.supplier],
+      ['DO / Invoice no.', '送货单/发票号', f.doNo],
+      ['PO no.', '采购单号', f.poNo],
+      ['Items & qty', '货品及数量', f.items],
+      ['Condition', '货物状况', COND[f.condition].join(' ')],
+      ['Received by', '收货人', f.receivedBy],
+      ['Remarks', '备注', f.remarks],
+      ['Photos', '照片', state.photos.length + ' page(s) 页']
+    ];
+    const dl = $('reviewList');
+    dl.innerHTML = '';
+    rows.forEach(([en, zh, val]) => {
+      const r = document.createElement('div'); r.className = 'rv';
+      const dt = document.createElement('dt'); dt.textContent = en + '\n' + zh; dt.style.whiteSpace = 'pre-line';
+      const dd = document.createElement('dd'); dd.textContent = val || '—';
+      r.append(dt, dd); dl.append(r);
+    });
+    showErr($('subErr'), '');
+  }
+
+  $('editBtn').onclick = () => go('details');
+
+  $('submitBtn').onclick = async () => {
+    if (state.busy) return;
+    state.busy = true;
+    const btn = $('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Uploading… 上传中…';
+    showErr($('subErr'), '');
+    const f = readForm();
+    try {
+      const r = await api({
+        action: 'submit',
+        passcode: state.passcode,
+        record: f,
+        photos: state.photos.map((d) => d.split(',')[1])
+      });
+      if (!r.ok) {
+        if (r.error === 'passcode') { store.del('rcv_pass'); state.passcode = ''; }
+        throw new Error(errText(r.error));
+      }
+      $('refNo').textContent = r.ref;
+      $('doneSummary').textContent = f.supplier + ' · ' + f.doNo + ' · ' + state.photos.length + ' photo(s) 张照片';
+      go('done');
+    } catch (err) {
+      showErr($('subErr'), (err.message || err) + '\nYour photos and details are kept — tap Submit to try again. 资料已保留，请再按提交。');
+    } finally {
+      state.busy = false;
+      btn.disabled = false;
+      btn.textContent = 'Submit · 提交';
+    }
+  };
+
+  /* ---------- 5. done ---------- */
+  function resetRecord() {
+    state.photos = [];
+    state.condition = 'good';
+    renderThumbs();
+    ['f_supplier', 'f_doNo', 'f_poNo', 'f_items', 'f_remarks'].forEach((id) => { $(id).value = ''; $(id).classList.remove('invalid'); });
+    $('f_date').value = today();
+    $('f_receivedBy').value = store.getL('rcv_name');
+    document.querySelectorAll('[data-cond]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.cond === 'good')));
+    ['capErr', 'detErr', 'subErr'].forEach((id) => showErr($(id), ''));
+  }
+  $('againBtn').onclick = () => { resetRecord(); go(state.passcode ? 'capture' : 'lock'); };
+
+  /* ---------- back + start ---------- */
+  $('backBtn').onclick = () => {
+    const prev = { capture: 'lock', details: 'capture', review: 'details' }[state.screen] || 'lock';
+    if (prev === 'lock') { state.passcode = ''; store.del('rcv_pass'); }
+    go(prev);
+  };
+
+  window.addEventListener('beforeunload', (e) => {
+    if (state.photos.length && state.screen !== 'done') { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  resetRecord();
+  state.passcode = store.get('rcv_pass');
+  go(state.passcode ? 'capture' : 'lock');
+})();
+</script>
+</body>
+</html>
